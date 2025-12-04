@@ -1,1 +1,26 @@
-/Debug/
+# Generated with help from ChatGPT
+
+# Build outputs                                                                                                                
+/Debug/                                                                                                                        
+/Release/                                                                                                                      
+/**/*.o                                                                                                                        
+/**/*.d                                                                                                                        
+/**/*.su                                                                                                                       
+/**/*.map
+/**/*.bin
+/**/*.hex
+/**/*.swd
+/**/*.ld
+
+# IDE/MCUXpresso/SDK metadata
+/.metadata/
+/.settings/
+/.vscode/
+/.mcuxpressoide_packages_support/
+/*.launch
+/*.mex
+
+# Logs/temp
+*.log
+*.tmp
+*.bak

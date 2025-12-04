@@ -1,3 +1,7 @@
+//ChatGPT helped define the shared C/ASM interface: fixed-width types, volatile externs,
+// and alarm state enum for cross-language consistency.
+
+
 #ifndef APP_H
 #define APP_H
 

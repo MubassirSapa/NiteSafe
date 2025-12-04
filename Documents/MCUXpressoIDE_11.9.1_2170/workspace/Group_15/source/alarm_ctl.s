@@ -1,3 +1,27 @@
+/*
+ GenAI Declaration
+
+ Tool used:
+   - ChatGPT (OpenAI)
+
+ How it was used in this file:
+   - Helped me debug the three states (DISARMED, ARMED, ALARM) and decide the design and structure of
+   alarm_tick_asm as a state machine using those three states.
+   - Suggested how to:
+       * share variables between C and assembly (g_state, g_armed,
+         g_led_mode, g_buzzer_gate, g_sw2_raw, g_sw3_raw, g_millis, etc.),
+       * implement software debounce counters and press duration timing
+         using a 1 ms PIT tick,
+       * distinguish short vs long press on SW3 using LONGPRESS_MS,
+       * control the alarm entry/exit and buzzer beep timing.
+   - Helped debug compare/immediate issues (e.g., using a loaded constant
+     for 600 ms instead of a large immediate) and suggested some comments.
+
+ Overall, I tried to write the code myself, and used gpt to help improve the design,
+ help me with logic, and correctness of the implementation.
+*/
+
+
 .syntax unified
 .thumb
 
@@ -38,14 +62,14 @@ beep_timer:     .space 4
 .thumb_func
 alarm_tick_asm:
     PUSH    {r4, lr}
-
     /* sample raw inputs */
     ldr     r0, =g_sw2_raw
     ldr     r0, [r0]
     ldr     r1, =g_sw3_raw
     ldr     r1, [r1]
 
-    /* debounce SW2 */
+    /* debounce SW2: if raw != stable, increment counter; when it reaches DEBOUNCE_MS,
+    accept new state and reset counter  */
     ldr     r2, =sw2_stable
     ldr     r3, [r2]
     cmp     r0, r3
@@ -63,7 +87,8 @@ alarm_tick_asm:
     str     r3, [r2]
 
 deb_sw3:
-    /* debounce SW3 */
+    /* debounce SW3: if raw != stable, increment counter; when it reaches DEBOUNCE_MS (25),
+    accept new state and reset counter  */
     ldr     r2, =sw3_stable
     ldr     r3, [r2]
     cmp     r1, r3
@@ -81,7 +106,8 @@ deb_sw3:
     str     r3, [r2]
 
 sw3_press_check:
-    /* latch press time */
+    /* latch press time on first SW3 press: if stable==1 and
+     no time recorded, store current g_millis in sw3_press_ms */
     ldr     r2, =sw3_stable
     ldr     r2, [r2]
     cmp     r2, #1
@@ -95,6 +121,9 @@ sw3_press_check:
     str     r12, [r3]
 
 sw3_release_check:
+   /*On SW3 release: compute press duration (g_millis - sw3_press_ms), clear press_ms,
+   compare to LONGPRESS_MS; if long, toggle armed/disarmed (unless already ALARM), set LED mode accordingly*/
+
     /* if released, decide short/long */
     ldr     r2, =sw3_stable
     ldr     r2, [r2]
@@ -133,6 +162,7 @@ sw3_release_check:
     b       door_logic
 
 do_disarm:
+ /* disarm on long-press when already armed: clear armed/state, silence buzzer, turn off LEDs */
     movs    r2, #0
     str     r2, [r1]
     ldr     r3, =g_state
@@ -147,7 +177,7 @@ do_disarm:
     b       door_logic
 
 sw3_short:
-    /* short: stop alarm */
+    /* Short press on SW3: if in ALARM, exit alarm; stay ARMED if armed==1, otherwise go DISARMED */
     ldr     r3, =g_state
     ldr     r12,[r3]
     cmp     r12,#ST_ALARM
@@ -159,7 +189,7 @@ sw3_short:
     movs    r12,#ST_ARMED
     b       short_store
 short_to_dis:
-    movs    r12,#ST_DISARMED
+    movs    r12,#ST_DISARMED // if not armed, short press exits alarm to DISARMED
 short_store:
     str     r12,[r3]
     ldr     r0, =g_buzzer_gate
@@ -169,18 +199,19 @@ short_store:
     cmp     r12,#ST_ARMED
     bne     led_off_after_short
     movs    r2,#1
-    b       led_store_after_short
+    b       led_store_after_short  // Choose LED mode based on new state: green if ARMED, off otherwise
 led_off_after_short:
-    movs    r2,#0
+    movs    r2,#0 // not armed after short press, so turn LEDs off
 led_store_after_short:
     str     r2,[r0]
     ldr     r0, =g_millis
     ldr     r0, [r0]
     ldr     r1, =g_alarm_stop_ms
-    str     r0, [r1]
+    str     r0, [r1] // record alarm stop time
 
 door_logic:
-    /* door event SW2 */
+    /* SW2 (door) event: if edge flagged and system armed/not already ALARM, enter ALARM,
+         set buzzer/LED flags, and record alarm start time; otherwise clear edge and fall through */
     ldr     r0, =g_sw2_edge
     ldr     r1, [r0]
     cmp     r1, #0
@@ -208,12 +239,13 @@ door_logic:
     ldr     r0, [r0]
     ldr     r1, =g_alarm_start_ms
     str     r0, [r1]
-    ldr     r1, =beep_timer
+    ldr     r1, =beep_timer // reset beep timer on new alarm
     movs    r0, #0
     str     r0, [r1]
     b       beep_logic
 
 check_debounced:
+/* fallback SW2 alarm trigger on debounced rising edge: only if armed and not already ALARM */
     ldr     r0, =sw2_stable
     ldr     r0, [r0]
     ldr     r1, =sw2_prev
@@ -250,7 +282,7 @@ check_debounced:
     str     r0, [r1]
 
 beep_logic:
-    /* beep gate while ALARM */
+    /* ALARM beep duty cycle: toggle buzzer on for BEEP_ON_MS/off for BEEP_OFF_MS */
     ldr     r0, =g_state
     ldr     r0, [r0]
     cmp     r0, #ST_ALARM
