@@ -76,7 +76,7 @@ static uint32_t get_bus_clock_hz(void) {
     return SystemCoreClock / div;
 }
 
-//from line ~61 to 71 :ChatGPT taught and helped me how to implement the Lab 7 GPIO init steps in C:
+//from line ~82 to 93 :ChatGPT taught and helped me how to implement the Lab 7 GPIO init steps in C:
 // enable PORTB/C/E clocks, set LEDR/LEDG/BUZ pins to GPIO mode via PORTx_PCR,
 // set GPIOx_PDDR as outputs, then drive them off (active-low LEDs, buzzer low).
 static void board_init_outputs(void) {
@@ -92,7 +92,7 @@ static void board_init_outputs(void) {
     gpio_out(BUZ_GPIO, BUZ_PIN, 0);
 }
 
-//from line 78 - 84 : ChatGPT helped me implement the raw PORTA/PORTD input setup: enable clocks,
+//from line 99 - 105 : ChatGPT helped me implement the raw PORTA/PORTD input setup: enable clocks,
 // mux SW2 (PTD11) and SW3 (PTA10) to GPIO with pull-ups and falling-edge IRQC(0xA),
 // then clear ISFR to arm the interrupts.
 
@@ -105,7 +105,7 @@ static void board_init_inputs(void) {
     PORTA->ISFR = (1u << SW3_PIN);
 }
 
-// from line ~90 to 96: ChatGPT helped derive the PIT setup in C: enable PIT clock (SCGC6),
+// from line ~111 to 117: ChatGPT helped derive the PIT setup in C: enable PIT clock (SCGC6),
 // compute LDVAL from the bus clock for a 1 kHz tick, and start PIT0 with interrupt enable.
 // Lab 6/8 use PIT, but AI guided this register-level load calculation and init sequence.
 static void pit0_start_1khz(void) {
@@ -117,7 +117,7 @@ static void pit0_start_1khz(void) {
     PIT->CHANNEL[0].TCTRL = PIT_TCTRL_TIE_MASK | PIT_TCTRL_TEN_MASK;
 }
 
-//from line ~103 to 116: ChatGPT assisted the flag-driven outputs: LED mode selection (off/green/blink using g_millis)
+//from line ~124 to 138: ChatGPT assisted the flag-driven outputs: LED mode selection (off/green/blink using g_millis)
 // and buzzer gating via g_buzzer_gate; AI helped structure this handler from my intended behavior.
 
 // Outputs from flags
@@ -140,7 +140,7 @@ static void service_outputs(void) {
 
 // Interrupts
 
-//from line: 124 - 136: ChatGPT assisted and suggested: SW2 ISR clears ISFR, latches edge,
+//from line: 145 - 158: ChatGPT assisted and suggested: SW2 ISR clears ISFR, latches edge,
 //sets LED/buzzer flags, and timestamps alarm start (as alarm logic was not taught in lab).
 void PORTD_IRQHandler(void) {
     if (PORTD->ISFR & (1u << SW2_PIN)) {
@@ -157,7 +157,7 @@ void PORTD_IRQHandler(void) {
     }
 }
 
-//from line 140 to 146: ChatGPT assisted: SW3 ISR flag clearing only; no extra logic was added.
+//from line 161 to 166: ChatGPT assisted: SW3 ISR flag clearing only; no extra logic was added.
 void PORTA_IRQHandler(void) {
     uint32_t mask = (1u << SW3_PIN);
     if (PORTA->ISFR & mask) PORTA->ISFR = mask;
@@ -167,7 +167,7 @@ void PORTA_IRQHandler(void) {
     }
 }
 
-//from line 151 to 162: ChatGPT assisted with PIT ISR samples switches, provides SW2 edge fallback,
+//from line 172 to 183: ChatGPT assisted with PIT ISR samples switches, provides SW2 edge fallback,
 // and invoke the ASM tick; this software edge/flag pattern was not taught in labs so I took help of gpt to assist me.
 void PIT0_IRQHandler(void) {
     PIT->CHANNEL[0].TFLG = PIT_TFLG_TIF_MASK;
